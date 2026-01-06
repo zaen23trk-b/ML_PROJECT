@@ -13,7 +13,18 @@ with open("attack_detection_model.pkl", "rb") as f:
     data = pickle.load(f)
 
 model = data["model"]
-feature_names = data["features"]
+
+# =========================
+# PILIH 4 FITUR SAJA
+# =========================
+feature_names = [
+    "network_packet_size",
+    "session_duration",
+    "login_attempts",
+    "ip_reputation_score"
+]
+
+print(f"Model expects 4 features: {feature_names}")
 
 # =========================
 # AMBIL INPUT DARI PHP / CLI
@@ -21,7 +32,7 @@ feature_names = data["features"]
 input_data = json.loads(sys.stdin.read())
 
 # =========================
-# RULE-BASED OVERRIDE (Buat traffic normal nyata)
+# RULE-BASED OVERRIDE (traffic normal nyata)
 # =========================
 if (
     input_data.get("ip_reputation_score", 0) >= 0.9 and
@@ -38,10 +49,11 @@ if (
         "reason": "Rule-based safe traffic"
     }
     print(json.dumps(output, indent=2))
+    print(f"Number of features used in model: {len(feature_names)}")
     sys.exit()
 
 # =========================
-# BUAT DATAFRAME UNTUK ML
+# BUAT DATAFRAME UNTUK ML (hanya 4 fitur)
 # =========================
 X = pd.DataFrame([[input_data.get(f, 0) for f in feature_names]], columns=feature_names)
 
@@ -51,7 +63,6 @@ X = pd.DataFrame([[input_data.get(f, 0) for f in feature_names]], columns=featur
 prediction = int(model.predict(X)[0])
 probs = model.predict_proba(X)[0]
 
-# Cari index kelas
 cls_index = {cls: i for i, cls in enumerate(model.classes_)}
 
 prob_normal = float(probs[cls_index.get(0, 0)])
@@ -68,10 +79,11 @@ output = {
 print(json.dumps(output, indent=2))
 
 # =========================
-# DEBUG PRINT (opsional)
+# DEBUG PRINT
 # =========================
-print("\n===== DEBUG INPUT VECTOR =====")
+print("\n===== DEBUG INPUT VECTOR (4 fitur) =====")
 print(X)
 print("\n===== DEBUG PREDICTION PROBABILITIES =====")
 print(f"Normal: {prob_normal:.3f}, Attack: {prob_attack:.3f}")
 print(f"Predicted Class: {'Normal' if prediction == 0 else 'Attack'}")
+print(f"Number of features used in model: {len(feature_names)}")

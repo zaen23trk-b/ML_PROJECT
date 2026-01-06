@@ -4,134 +4,96 @@ $prob_attack = 0;
 $prob_normal = 0;
 $input = [];
 
+// ===============================
+// CEK APAKAH DATA DITERIMA VIA POST
+// ===============================
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     // ===============================
-    // DAFTAR FITUR SESUAI MODEL
+    // 4 FITUR UTAMA MODEL
     // ===============================
     $features = [
-        "network_packet_size","login_attempts","session_duration","ip_reputation_score",
-        "failed_logins","unusual_time_access",
-        "protocol_type_TCP","protocol_type_UDP","protocol_type_ICMP",
-        "encryption_used_DES","encryption_used_AES","encryption_used_Unknown",
-        "browser_type_Edge","browser_type_Firefox","browser_type_Safari",
-        "browser_type_Chrome","browser_type_Unknown"
+        "network_packet_size",
+        "login_attempts",
+        "session_duration",
+        "ip_reputation_score"
     ];
 
     // ===============================
-    // AMBIL INPUT KATEGORI
-    // ===============================
-    $protocol   = $_POST['protocol']   ?? 'TCP';
-    $encryption = $_POST['encryption'] ?? 'DES';
-    $browser    = $_POST['browser']    ?? 'Firefox';
-
-    // ===============================
-    // ONE HOT ENCODING
-    // ===============================
-    $category_input = [
-        "protocol_type_TCP"    => $protocol === 'TCP' ? 1 : 0,
-        "protocol_type_UDP"    => $protocol === 'UDP' ? 1 : 0,
-        "protocol_type_ICMP"   => $protocol === 'ICMP' ? 1 : 0,
-
-        "encryption_used_DES"     => $encryption === 'DES' ? 1 : 0,
-        "encryption_used_AES"     => $encryption === 'AES' ? 1 : 0,
-        "encryption_used_Unknown" => $encryption === 'Unknown' ? 1 : 0,
-
-        "browser_type_Edge"    => $browser === 'Edge' ? 1 : 0,
-        "browser_type_Firefox" => $browser === 'Firefox' ? 1 : 0,
-        "browser_type_Safari"  => $browser === 'Safari' ? 1 : 0,
-        "browser_type_Chrome"  => $browser === 'Chrome' ? 1 : 0,
-        "browser_type_Unknown" => $browser === 'Unknown' ? 1 : 0,
-    ];
-
-    // ===============================
-    // GABUNGKAN INPUT
+    // AMBIL INPUT DARI POST
     // ===============================
     foreach ($features as $f) {
-        if (isset($category_input[$f])) {
-            $input[$f] = $category_input[$f];
-        } else {
-            $input[$f] = floatval($_POST[$f] ?? 0);
-        }
+        $input[$f] = isset($_POST[$f]) ? floatval($_POST[$f]) : 0;
     }
 
     // ===============================
-    // KIRIM KE PYTHON
+    // RULE-BASED NORMAL TRAFFIC
     // ===============================
-    $json = json_encode($input);
-
-    $process = proc_open(
-        "python predict.py",
-        [
-            0 => ["pipe", "r"],
-            1 => ["pipe", "w"],
-            2 => ["pipe", "w"]
-        ],
-        $pipes
+    $normal_rule = (
+        $input["ip_reputation_score"] >= 0.9 &&
+        $input["login_attempts"] <= 2 &&
+        $input["session_duration"] <= 3600 &&
+        $input["network_packet_size"] <= 1500
     );
 
-    fwrite($pipes[0], $json);
-    fclose($pipes[0]);
-
-    $output = stream_get_contents($pipes[1]);
-    fclose($pipes[1]);
-
-    $error = stream_get_contents($pipes[2]);
-    fclose($pipes[2]);
-
-    proc_close($process);
-
-    // ===============================
-    // HANDLE OUTPUT PYTHON (FIX)
-    // ===============================
-    $result = json_decode(trim($output), true);
-
-    // DEFAULT AMAN
-    $label = "Normal";
-    $prob_attack = 0;
-    $prob_normal = 100;
-
-    // Kalau Python kirim JSON valid
-    if (is_array($result)) {
-
-        if (isset($result["label"])) {
-            $label = $result["label"];
-        } elseif (isset($result["prediction"])) {
-            $label = ($result["prediction"] == 1) ? "Attack" : "Normal";
-        }
-
-        if (isset($result["prob_attack"])) {
-            $prob_attack = round($result["prob_attack"] * 100, 2);
-        }
-
-        if (isset($result["prob_normal"])) {
-            $prob_normal = round($result["prob_normal"] * 100, 2);
-        }
-
+    if ($normal_rule) {
+        $label = "Normal";
+        $prob_normal = 95;
+        $prob_attack = 5;
     } else {
-        // ⚠️ JANGAN ERROR — anggap ATTACK keras
+        // ===============================
+        // KIRIM KE PYTHON UNTUK PREDIKSI ML
+        // ===============================
+        $json = json_encode($input);
+
+        $process = proc_open(
+            "python predict.py",
+            [
+                0 => ["pipe", "r"],
+                1 => ["pipe", "w"],
+                2 => ["pipe", "w"]
+            ],
+            $pipes
+        );
+
+        fwrite($pipes[0], $json);
+        fclose($pipes[0]);
+
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+
+        proc_close($process);
+
+        $result = json_decode(trim($output), true);
+
+        // DEFAULT JIKA PYTHON ERROR
         $label = "Attack";
         $prob_attack = 100;
         $prob_normal = 0;
-    }
 
+        if (is_array($result)) {
+            $label = $result["label"] ?? (($result["prediction"] ?? 1) == 1 ? "Attack" : "Normal");
+            $prob_attack = isset($result["prob_attack"]) ? round($result["prob_attack"] * 100, 2) : 0;
+            $prob_normal = isset($result["prob_normal"]) ? round($result["prob_normal"] * 100, 2) : 100;
+        }
+    }
 }
 
 // ===============================
 // ALERT CLASS
 // ===============================
-$alert_class = ($label === "Attack")
-    ? "alert-danger"
-    : (($label === "Normal") ? "alert-success" : "alert-warning");
+$alert_class = ($label === "Attack") ? "alert-danger" : "alert-success";
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Hasil Prediksi</title>
+    <title>Hasil Prediksi Trafik</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
         body {
             background: #0f172a;
@@ -152,15 +114,14 @@ $alert_class = ($label === "Attack")
         }
     </style>
 </head>
-
 <body class="d-flex align-items-center justify-content-center py-5">
 
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-6">
             <div class="card p-4 shadow-lg">
 
-                <h2 class="text-center mb-4">Hasil Prediksi</h2>
+                <h2 class="text-center mb-4">Hasil Prediksi Trafik Jaringan</h2>
 
                 <?php if ($label): ?>
                     <div class="alert <?= $alert_class ?> text-center">
@@ -183,12 +144,8 @@ $alert_class = ($label === "Attack")
                         </tbody>
                     </table>
                 <?php else: ?>
-                    <p class="text-center text-warning">Tidak ada data diproses.</p>
+                    <p class="text-center text-warning">Tidak ada data yang diproses.</p>
                 <?php endif; ?>
-
-                <div class="text-center mt-4">
-                    <a href="index.php" class="btn btn-secondary px-4">⬅ Kembali</a>
-                </div>
 
             </div>
         </div>
