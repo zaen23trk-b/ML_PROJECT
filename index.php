@@ -86,6 +86,53 @@
     <p class="text-secondary">Decision Tree–based Cyber Attack Prediction</p>
 </header>
 
+<!-- DESKRIPSI SISTEM -->
+<section class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card p-4 p-md-5">
+                <h3 class="fw-bold text-info mb-3 text-center">
+                    Tentang Sistem
+                </h3>
+
+                <p class="text-secondary" style="text-align: justify;">
+                    Proyek ini bertujuan untuk membangun sebuah
+                    <strong>Network Intrusion Detection System (IDS)</strong>
+                    berbasis <strong>machine learning</strong> dengan
+                    menggunakan algoritma <strong>Decision Tree Classifier</strong>.
+                    Sistem ini dirancang untuk menganalisis log aktivitas
+                    keamanan jaringan dan mengklasifikasikan setiap aktivitas
+                    apakah termasuk aktivitas <em>normal</em> atau
+                    <em>serangan (attack)</em>.
+                </p>
+
+                <p class="text-secondary" style="text-align: justify;">
+                    Dengan memanfaatkan pola yang diperoleh dari data historis,
+                    model yang dibangun diharapkan mampu membantu administrator
+                    keamanan jaringan dalam mengenali aktivitas mencurigakan
+                    secara lebih cepat, akurat, dan otomatis. Hal ini dapat
+                    mendukung proses mitigasi ancaman, mencegah penyalahgunaan
+                    akses, serta meningkatkan tingkat keamanan jaringan
+                    secara keseluruhan.
+                </p>
+
+                <hr class="border-secondary my-4">
+
+                <h5 class="fw-semibold text-center mb-3">
+                    Kelompok Pengembang
+                </h5>
+
+                <ul class="list-unstyled text-center text-secondary">
+                    <li>Zaen Zidan Al Khalis</li>
+                    <li>Annisa Mutiara Andita</li>
+                    <li>Roberto Carlos Simangunsong</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+
 
 <!-- FOOTER -->
 <footer class="mt-auto border-top border-secondary" style="background:#020617">
